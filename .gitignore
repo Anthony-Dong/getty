@@ -20,3 +20,6 @@ classes
 *.swp
 
 vendor/
+
+# 公司内部，不允许
+*firm.*
