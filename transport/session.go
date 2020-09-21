@@ -93,7 +93,7 @@ type session struct {
 	// handle logic
 	maxMsgLen int32
 	// task queue
-	tPool *gxsync.TaskPool
+	tPool *gxsync.TaskPool // 使用go的线程池，处理on message
 
 	// heartbeat
 	period time.Duration
@@ -163,6 +163,7 @@ func newWSSession(conn *websocket.Conn, endPoint EndPoint) Session {
 }
 
 func (s *session) Reset() {
+	// 这种操作安全吗？？？？
 	*s = session{
 		name:   defaultSessionName,
 		once:   &sync.Once{},
@@ -502,6 +503,7 @@ func (s *session) WriteBytesArray(pkgs ...[]byte) error {
 
 // func (s *session) RunEventLoop() {
 func (s *session) run() {
+	// conn??? 这个内部代码，为啥还要判断
 	if s.Connection == nil || s.listener == nil || s.writer == nil {
 		errStr := fmt.Sprintf("session{name:%s, conn:%#v, listener:%#v, writer:%#v}",
 			s.name, s.Connection, s.listener, s.writer)
@@ -515,6 +517,7 @@ func (s *session) run() {
 
 	// call session opened
 	s.UpdateActive()
+	// 这个调用通知 open
 	if err := s.listener.OnOpen(s); err != nil {
 		log.Error("[OnOpen] session %s, error: %#v", s.Stat(), err)
 		s.Close()
@@ -522,6 +525,7 @@ func (s *session) run() {
 	}
 
 	// start read/write gr
+	// 添加2个g，这个有啥用？，只是为了记录
 	atomic.AddInt32(&(s.grNum), 2)
 	go s.handleLoop()
 	go s.handlePackage()
@@ -565,13 +569,16 @@ LOOP:
 		// A select blocks until one of its cases is ready to run.
 		// It choose one at random if multiple are ready. Otherwise it choose default branch if none is ready.
 		select {
+		/**
+		如果done了，则
+		*/
 		case <-s.done:
 			// this case assure the (session)handleLoop gr will exit before (session)handlePackage gr.
 			<-s.rDone
 
 			if len(s.wQ) == 0 {
 				log.Info("%s, [session.handleLoop] got done signal. wQ is nil.", s.Stat())
-				break LOOP
+				break LOOP // 为啥要申明LOOP，完全没用到？？？？
 			}
 			counter.Start()
 			if counter.Count() > s.wait.Nanoseconds() {
@@ -579,6 +586,14 @@ LOOP:
 				break LOOP
 			}
 
+			// 大致方式：
+			/**
+			1、从chan收消息，
+			2、udp，ws直接不用管，写一次
+			3、其他协议，会写数据，大致就是优化，maxIovecNum会无限的从chan里拿数据，append数据，前提是写（减少调用send的次数），但是感觉底层没做优化
+			4、任意异常，则标记flag=false
+			5、结束
+			*/
 		case outPkg, ok = <-s.wQ:
 			if !ok {
 				continue
@@ -616,7 +631,7 @@ LOOP:
 					loopFlag = true
 					select {
 					case outPkg, ok = <-s.wQ:
-						if !ok {
+						if !ok { // chanel 关闭，则不loop
 							loopFlag = false
 						}
 
@@ -638,6 +653,9 @@ LOOP:
 				flag = false
 			}
 
+			/**
+			周期，循环
+			*/
 		case <-wheel.After(s.period):
 			if flag {
 				if wsFlag {
@@ -646,6 +664,8 @@ LOOP:
 						log.Warn("wsConn.writePing() = error:%+v", jerrors.ErrorStack(err))
 					}
 				}
+				// ？？？ 如果ws协议，咋办？？？，还要处理一遍？
+				// 我觉得这种框架，不需要做这种if else的兼容
 				s.listener.OnCron(s)
 			}
 		}
@@ -747,6 +767,8 @@ func (s *session) handleTCPPackage() error {
 
 		bufLen = 0
 		for {
+			//  loop读取，当没有数据，是不会空转的！！！
+			// 这里没有使用读超时
 			// for clause for the network timeout condition check
 			// s.conn.SetReadTimeout(time.Now().Add(s.rTimeout))
 			bufLen, err = conn.recv(buf)
@@ -776,6 +798,7 @@ func (s *session) handleTCPPackage() error {
 			if pktBuf.Len() <= 0 {
 				break
 			}
+			// 读取消息，解码
 			pkg, pkgLen, err = s.reader.Read(s, pktBuf.Bytes())
 			// for case 3/case 4
 			if err == nil && s.maxMsgLen > 0 && pkgLen > int(s.maxMsgLen) {
@@ -794,8 +817,8 @@ func (s *session) handleTCPPackage() error {
 			}
 			// handle case 4
 			s.UpdateActive()
-			s.addTask(pkg)
-			pktBuf.Next(pkgLen)
+			s.addTask(pkg)      // 处理的时候，添加到线程 池，这个部分优化！
+			pktBuf.Next(pkgLen) // todo
 			// continue to handle case 5
 		}
 		if exit {

@@ -229,12 +229,13 @@ func (s *server) listen() error {
 }
 
 func (s *server) accept(newSession NewSessionCallback) (Session, error) {
-	conn, err := s.streamListener.Accept()
+	conn, err := s.streamListener.Accept() // 拿到连接
 	if err != nil {
 		return nil, jerrors.Trace(err)
 	}
+	// ？？？？ 为啥还要管这个
 	if gxnet.IsSameAddr(conn.RemoteAddr(), conn.LocalAddr()) {
-		log.Warn("conn.localAddr{%s} == conn.RemoteAddr", conn.LocalAddr().String(), conn.RemoteAddr().String())
+		log.Warn("conn.localAddr{%s} == conn.RemoteAddr{%s}", conn.LocalAddr().String(), conn.RemoteAddr().String())
 		return nil, jerrors.Trace(errSelfConnect)
 	}
 
@@ -258,12 +259,12 @@ func (s *server) runTcpEventLoop(newSession NewSessionCallback) {
 			delay  time.Duration
 		)
 		for {
-			if s.IsClosed() {
+			if s.IsClosed() { // 看看done是否有消息，是否需要关闭
 				log.Warn("server{%s} stop accepting client connect request.", s.addr)
 				return
 			}
 			if delay != 0 {
-				<-wheel.After(delay)
+				<-wheel.After(delay) // 是否需要delay？为啥需要用这个wheel？
 			}
 			client, err = s.accept(newSession)
 			if err != nil {

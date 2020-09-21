@@ -24,7 +24,7 @@ package getty
 type ServerOption func(*ServerOptions)
 
 type ServerOptions struct {
-	addr string
+	addr string // 监听地址
 
 	// websocket
 	path       string

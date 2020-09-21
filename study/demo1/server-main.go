@@ -19,6 +19,7 @@ func main() {
 	fmt.Println(server.IsClosed())
 	fmt.Println(server)
 
+	//net.Listen()
 	time.Sleep(time.Second * 100)
 }
 
