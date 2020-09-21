@@ -29,12 +29,12 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-)
 
-import (
 	log "github.com/AlexStocks/log4go"
-	"github.com/dubbogo/gost/net"
+
+	gxnet "github.com/dubbogo/gost/net"
 	"github.com/gorilla/websocket"
+
 	jerrors "github.com/juju/errors"
 )
 

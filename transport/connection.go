@@ -26,12 +26,11 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-)
 
-import (
 	log "github.com/AlexStocks/log4go"
 	"github.com/golang/snappy"
 	"github.com/gorilla/websocket"
+
 	jerrors "github.com/juju/errors"
 )
 

@@ -26,16 +26,18 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-)
 
-import (
 	gxbytes "github.com/dubbogo/gost/bytes"
+
 	gxsync "github.com/dubbogo/gost/sync"
 	"github.com/gorilla/websocket"
+
 	jerrors "github.com/juju/errors"
 
 	log "github.com/AlexStocks/log4go"
-	"github.com/dubbogo/gost/context"
+
+	gxcontext "github.com/dubbogo/gost/context"
+
 	gxtime "github.com/dubbogo/gost/time"
 )
 
